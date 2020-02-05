@@ -21,6 +21,7 @@ use nalgebra as na;
 use std::env;
 use std::f32;
 use std::path;
+use std::collections::HashMap;
 
 type Isometry3 = na::Isometry3<f32>;
 type Point3 = na::Point3<f32>;
@@ -54,7 +55,8 @@ gfx_defines! {
 }
 
 impl Vertex {
-    fn new(p: [i8; 3], t: [i8; 2]) -> Vertex {
+    fn new(p: [i8; 3], map: &HashMap<[i8; 3], [i8; 2]>) -> Vertex {
+        let t = map.get(&p).unwrap();
         Vertex {
             pos: [f32::from(p[0]), f32::from(p[1]), f32::from(p[2]), 1.0],
             tex_coord: [f32::from(t[0]), f32::from(t[1])],
@@ -111,41 +113,51 @@ uniform sampler2D t_Color;
 void main() {
     vec4 tex = texture(t_Color, v_TexCoord);
     float blend = dot(v_TexCoord-vec2(0.5,0.5), v_TexCoord-vec2(0.5,0.5));
-    Target0 = mix(tex, vec4(0.0,0.0,0.0,0.0), blend*1.0);
+    Target0 = tex;
 }"#;
 
+        let mut vertex_to_tx = HashMap::new();
+        vertex_to_tx.insert([1, 1, 1], [0, 0]);
+        vertex_to_tx.insert([1, -1, 1], [1, 0]);
+        vertex_to_tx.insert([-1, 1, 1], [0, 1]);
+        vertex_to_tx.insert([-1, -1, 1], [1, 1]);
+
+        vertex_to_tx.insert([1, 1, -1], [1, 1]);
+        vertex_to_tx.insert([1, -1, -1], [0, 1]);
+        vertex_to_tx.insert([-1, 1, -1], [1, 0]);
+        vertex_to_tx.insert([-1, -1, -1], [0, 0]);
         // Cube geometry
         let vertex_data = [
             // top (0, 0, 1)
-            Vertex::new([-1, -1, 1], [0, 0]),
-            Vertex::new([1, -1, 1], [1, 0]),
-            Vertex::new([1, 1, 1], [1, 1]),
-            Vertex::new([-1, 1, 1], [0, 1]),
+            Vertex::new([-1, -1, 1], &vertex_to_tx),
+            Vertex::new([1, -1, 1], &vertex_to_tx),
+            Vertex::new([1, 1, 1], &vertex_to_tx),
+            Vertex::new([-1, 1, 1], &vertex_to_tx),
             // bottom (0, 0, -1)
-            Vertex::new([-1, 1, -1], [1, 0]),
-            Vertex::new([1, 1, -1], [0, 0]),
-            Vertex::new([1, -1, -1], [0, 1]),
-            Vertex::new([-1, -1, -1], [1, 1]),
+            Vertex::new([-1, 1, -1], &vertex_to_tx),
+            Vertex::new([1, 1, -1], &vertex_to_tx),
+            Vertex::new([1, -1, -1], &vertex_to_tx),
+            Vertex::new([-1, -1, -1], &vertex_to_tx),
             // right (1, 0, 0)
-            Vertex::new([1, -1, -1], [0, 0]),
-            Vertex::new([1, 1, -1], [1, 0]),
-            Vertex::new([1, 1, 1], [1, 1]),
-            Vertex::new([1, -1, 1], [0, 1]),
+            Vertex::new([1, -1, -1], &vertex_to_tx),
+            Vertex::new([1, 1, -1], &vertex_to_tx),
+            Vertex::new([1, 1, 1], &vertex_to_tx),
+            Vertex::new([1, -1, 1], &vertex_to_tx),
             // left (-1, 0, 0)
-            Vertex::new([-1, -1, 1], [1, 0]),
-            Vertex::new([-1, 1, 1], [0, 0]),
-            Vertex::new([-1, 1, -1], [0, 1]),
-            Vertex::new([-1, -1, -1], [1, 1]),
+            Vertex::new([-1, -1, 1], &vertex_to_tx),
+            Vertex::new([-1, 1, 1], &vertex_to_tx),
+            Vertex::new([-1, 1, -1], &vertex_to_tx),
+            Vertex::new([-1, -1, -1], &vertex_to_tx),
             // front (0, 1, 0)
-            Vertex::new([1, 1, -1], [1, 0]),
-            Vertex::new([-1, 1, -1], [0, 0]),
-            Vertex::new([-1, 1, 1], [0, 1]),
-            Vertex::new([1, 1, 1], [1, 1]),
+            Vertex::new([1, 1, -1], &vertex_to_tx),
+            Vertex::new([-1, 1, -1], &vertex_to_tx),
+            Vertex::new([-1, 1, 1], &vertex_to_tx),
+            Vertex::new([1, 1, 1], &vertex_to_tx),
             // back (0, -1, 0)
-            Vertex::new([1, -1, 1], [0, 0]),
-            Vertex::new([-1, -1, 1], [1, 0]),
-            Vertex::new([-1, -1, -1], [1, 1]),
-            Vertex::new([1, -1, -1], [0, 1]),
+            Vertex::new([1, -1, 1], &vertex_to_tx),
+            Vertex::new([-1, -1, 1], &vertex_to_tx),
+            Vertex::new([-1, -1, -1], &vertex_to_tx),
+            Vertex::new([1, -1, -1], &vertex_to_tx),
         ];
 
         #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -162,10 +174,11 @@ void main() {
         let (vbuf, slice) = factory.create_vertex_buffer_with_slice(&vertex_data, index_data);
 
         // Create 1-pixel blue texture.
-        let texels = [[0x20, 0xA0, 0xC0, 0x00]];
+        let texels = [[0x20, 0x00, 0x00, 0x00],[0x20, 0xB0, 0xC0, 0x00],
+                      [0x10, 0xA0, 0xC0, 0x00],[0x20, 0x00, 0xD0, 0x00]];
         let (_, texture_view) = factory
             .create_texture_immutable::<gfx::format::Rgba8>(
-                texture::Kind::D2(1, 1, texture::AaMode::Single),
+                texture::Kind::D2(2, 2, texture::AaMode::Single),
                 texture::Mipmap::Provided,
                 &[&texels],
             )
